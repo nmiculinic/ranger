@@ -414,6 +414,7 @@ class Loader(FileManagerAware):
                 if self.pending_future is None:
                     self.pending_future = Loader.executor.submit(next, item.load_generator)
                 self.pending_future.result(timeout=self.seconds_of_work_time)
+                self.pending_future = None
             except concurrent.futures.TimeoutError:
                 break
             except StopIteration:
