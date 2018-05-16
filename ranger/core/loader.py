@@ -11,6 +11,7 @@ import os.path
 import select
 import sys
 import errno
+import concurrent.futures
 
 try:
     import chardet  # pylint: disable=import-error
@@ -284,6 +285,7 @@ class Loader(FileManagerAware):
     throbber_chars = r'/-\|'
     throbber_paused = '#'
     paused = False
+    executor = concurrent.futures.ThreadPoolExecutor()
 
     def __init__(self):
         self.queue = deque()
@@ -293,6 +295,7 @@ class Loader(FileManagerAware):
         self.rotate()
         self.old_item = None
         self.status = None
+        self.pending_future = None
 
     def rotate(self):
         """Rotate the throbber"""
@@ -408,7 +411,11 @@ class Loader(FileManagerAware):
 
         while time() < end_time:
             try:
-                next(item.load_generator)
+                if self.pending_future is None:
+                    self.pending_future = Loader.executor.submit(next, item.load_generator)
+                self.pending_future.result(timeout=self.seconds_of_work_time)
+            except concurrent.futures.TimeoutError:
+                break
             except StopIteration:
                 self._remove_current_process(item)
                 break
